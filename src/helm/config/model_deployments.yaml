@@ -2711,6 +2711,5 @@ model_deployments:
     client_spec:
         class_name: "helm.clients.huggingface_client.HuggingFaceClient"
         args:
-            device_map: auto
-            torch_dtype: torch.bfloat16
+            pretrained_model_name_or_path: ibm-granite/granite-8b-code-instruct-128k
       
