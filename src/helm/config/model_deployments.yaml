@@ -2742,3 +2742,43 @@ model_deployments:
         class_name: "helm.clients.huggingface_client.HuggingFaceClient"
         args:
             pretrained_model_name_or_path: meta-llama/CodeLlama-7b-Instruct-hf
+
+# Granite-3.0-8b-Base
+  - name: huggingface/granite-3.0-8b-base
+    model_name: ibm-granite/granite-3.0-8b-base
+    tokenizer_name: ibm-granite/granite-3.0-8b-base
+    max_sequence_length: 4096
+    client_spec:
+        class_name: "helm.clients.huggingface_client.HuggingFaceClient"
+        args:
+            pretrained_model_name_or_path: ibm-granite/granite-3.0-8b-base
+
+# Granite-3.0-8b-Instruct
+  - name: huggingface/granite-3.0-8b-instruct
+    model_name: ibm-granite/granite-3.0-8b-instruct
+    tokenizer_name: ibm-granite/granite-3.0-8b-instruct
+    max_sequence_length: 4096
+    client_spec:
+        class_name: "helm.clients.huggingface_client.HuggingFaceClient"
+        args:
+            pretrained_model_name_or_path: ibm-granite/granite-3.0-8b-instruct
+
+# Granite-3.1-8b-base
+  - name: huggingface/granite-3.1-8b-base
+    model_name: ibm-granite/granite-3.1-8b-base
+    tokenizer_name: ibm-granite/granite-3.1-8b-base
+    max_sequence_length: 8192
+    client_spec:
+        class_name: "helm.clients.huggingface_client.HuggingFaceClient"
+        args:
+            pretrained_model_name_or_path: ibm-granite/granite-3.1-8b-base
+
+# Granite-3.1-8b-instruct
+  - name: huggingface/granite-3.1-8b-instruct
+    model_name: ibm-granite/granite-3.1-8b-instruct
+    tokenizer_name: ibm-granite/granite-3.1-8b-instruct
+    max_sequence_length: 8192
+    client_spec:
+        class_name: "helm.clients.huggingface_client.HuggingFaceClient"
+        args:
+            pretrained_model_name_or_path: ibm-granite/granite-3.1-8b-instruct
