@@ -71,6 +71,29 @@ def run_entries_to_run_specs(
     return run_specs
 
 
+def parse_generate_prompt_arg(prompt_arg: str):
+    """Parse the generate-prompt argument in the format 'description:models=x:y:z'"""
+    if ":" not in prompt_arg:
+        raise ValueError(f"Formato inválido para --generate-prompt: {prompt_arg}. Formato esperado: description:models=model1:model2:...")
+    
+    parts = prompt_arg.split(":")
+    description = parts[0]
+    
+    # Verificar se o segundo elemento começa com "models="
+    if len(parts) < 2 or not parts[1].startswith("models="):
+        raise ValueError(f"Formato inválido para models em --generate-prompt: {prompt_arg}. Formato esperado: description:models=model1:model2:...")
+    
+    # Extrair os modelos
+    # O primeiro modelo estará no resto da segunda parte após "models="
+    models = []
+    if len(parts[1]) > len("models="):
+        models.append(parts[1][len("models="):])
+    
+    # Adicionar os modelos restantes (a partir da terceira parte)
+    models.extend(parts[2:])
+    
+    return {"description": description, "models": models}
+
 def run_benchmarking(
     run_specs: List[RunSpec],
     auth: Authentication,
@@ -88,6 +111,7 @@ def run_benchmarking(
     runner_class_name: Optional[str],
     mongo_uri: Optional[str] = None,
     disable_cache: Optional[bool] = None,
+    generate_prompt_config: Optional[dict] = None,
 ) -> List[RunSpec]:
     """Runs RunSpecs given a list of RunSpec descriptions."""
     sqlite_cache_backend_config: Optional[SqliteCacheBackendConfig] = None
@@ -112,7 +136,8 @@ def run_benchmarking(
     )
     with htrack_block("run_specs"):
         for run_spec in run_specs:
-            hlog(run_spec)
+            if 'generate_prompt' not in run_spec.groups:
+                hlog(run_spec)
     runner_cls = get_class_by_name(runner_class_name) if runner_class_name else Runner
     runner: Runner = runner_cls(
         execution_spec,
@@ -123,6 +148,7 @@ def run_benchmarking(
         cache_instances_only,
         skip_completed_runs,
         exit_on_error,
+        generate_prompt_config=generate_prompt_config,
     )
     runner.run_all(run_specs)
     return run_specs
@@ -266,12 +292,26 @@ def main():
         default=None,
         help="Full class name of the Runner class to use. If unset, uses the default Runner.",
     )
+    parser.add_argument(
+        "--generate-prompt",
+        nargs="*",
+        help="Generate Prompt",
+        default=[],
+    )
     add_run_args(parser)
     args = parser.parse_args()
     validate_args(args)
 
     register_builtin_configs_from_helm_package()
     register_configs_from_directory(args.local_path)
+
+    # Process generate-prompt argument
+    generate_prompt_config = None
+    if args.generate_prompt and len(args.generate_prompt) > 0:
+        try:
+            generate_prompt_config = parse_generate_prompt_arg(args.generate_prompt[0])
+        except ValueError as e:
+            hlog(f"Warning: {str(e)}")
 
     if args.enable_huggingface_models:
         from helm.benchmark.huggingface_registration import register_huggingface_hub_model_from_flag_value
@@ -292,6 +332,26 @@ def main():
         run_entries.extend(
             [RunEntry(description=description, priority=1, groups=None) for description in args.run_entries]
         )
+
+    if args.generate_prompt and len(args.generate_prompt) > 0:  
+        try:
+            generate_prompt_config = parse_generate_prompt_arg(args.generate_prompt[0])
+
+            # Criar RunEntry para cada modelo especificado no generate-prompt
+            if 'description' in generate_prompt_config and 'models' in generate_prompt_config:
+                description = generate_prompt_config['description']
+                for model in generate_prompt_config['models']:
+                    # Criar uma entrada específica para este modelo
+                    prompt_entry_description = f"{description}:model={model}"
+                    run_entries.append(RunEntry(
+                        description=prompt_entry_description, 
+                        priority=1, 
+                        groups=['generate_prompt']
+                    ))
+                
+        except ValueError as e:
+            hlog(f"Warning: {str(e)}")
+
     # TODO: Remove this eventually.
     if args.run_specs:
         run_entries.extend(
@@ -355,6 +415,7 @@ def main():
         runner_class_name=args.runner_class_name,
         mongo_uri=args.mongo_uri,
         disable_cache=args.disable_cache,
+        generate_prompt_config=generate_prompt_config,
     )
 
     if args.run_specs:

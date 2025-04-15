@@ -12,6 +12,7 @@ import numpy as np
 from tqdm import tqdm
 
 from helm.benchmark.adaptation.request_state import RequestState
+from helm.benchmark.generate_prompt.GeneratePrompt import GeneratePrompt
 from helm.common.general import ensure_directory_exists, write, asdict_without_nones
 from helm.common.hierarchical_logger import hlog, htrack_block
 from helm.common.cache import cache_stats
@@ -152,7 +153,9 @@ class Runner:
         cache_instances_only: bool,
         skip_completed_runs: bool,
         exit_on_error: bool,
+        generate_prompt_config: dict = None,
     ):
+        self.generate_prompt_config = generate_prompt_config or {}
         self.executor = Executor(execution_spec)
         self.annotator_executor = AnnotationExecutor(
             AnnotationExecutionSpec(
@@ -209,20 +212,41 @@ class Runner:
 
     def run_all(self, run_specs: List[RunSpec]):
         failed_run_specs: List[RunSpec] = []
+        run_generate = []
+        for run_spec in tqdm(run_specs, disable=None):
+            if 'generate_prompt' in run_spec.groups:
+                run_generate.append(run_spec)
+        
+        self.generate_prompt_llm(run_generate)
 
         for run_spec in tqdm(run_specs, disable=None):
             try:
                 with htrack_block(f"Running {run_spec.name}"):
-                    self.run_one(run_spec)
+                    if 'generate_prompt' not in run_spec.groups:
+                        self.run_one(run_spec)
             except Exception as e:
                 if self.exit_on_error:
                     raise e
-                else:
+                else: 
                     hlog(f"Error when running {run_spec.name}:\n{traceback.format_exc()}")
                     failed_run_specs.append(run_spec)
         if not self.exit_on_error and failed_run_specs:
             failed_runs_str = ", ".join([f'"{run_spec.name}"' for run_spec in failed_run_specs])
             raise RunnerError(f"Failed runs: [{failed_runs_str}]")
+
+    def generate_prompt_llm(self, run_spec:List[RunSpec]):
+        # Use the GeneratePrompt class if configured
+        if self.generate_prompt_config and 'description' in self.generate_prompt_config and 'models' in self.generate_prompt_config:
+            # Now create GeneratePrompt using executor
+            generate_prompt = GeneratePrompt(
+                description=self.generate_prompt_config['description'],
+                run_spec=run_spec,
+                executor=self.executor
+            )
+            
+            # Generate prompts
+            results = generate_prompt.generate()
+            hlog(f"GENERATE PROMPTS: {results}")
 
     def run_one(self, run_spec: RunSpec):
         run_path: str = self._get_run_path(run_spec)
